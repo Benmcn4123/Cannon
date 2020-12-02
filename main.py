@@ -3,19 +3,27 @@ from pygame.locals import *
 
 #import images
 
-player_anims = {"idle":[pygame.image.load("images/art1.png")], "run":[], "cannon_up_idle":[pygame.image.load("images/art4.png")], "cannon_up_run":[]}
-grass_tiles = {"default_grass":pygame.image.load("images/art8.png"), "top_grass":pygame.image.load("images/art9.png")}
+player_anims = {
+"idle":[pygame.image.load("images/art1.png"), pygame.image.load("images/art3.png")],
+"run":[pygame.image.load("images/art1.png"), pygame.image.load("images/art2.png")],
+"cannon_up_idle":[pygame.image.load("images/art4.png"), pygame.image.load("images/art6.png")],
+"looking_up_run":[pygame.image.load("images/art4.png"), pygame.image.load("images/art5.png")],
+"jump":[pygame.image.load("images/art2.png"), pygame.image.load("images/art2.png")],
+"looking_up_jump":[pygame.image.load("images/art5.png"), pygame.image.load("images/art5.png")],
+}
+
+grass_tiles = {"default_grass":pygame.image.load("images/art8.png"), "top_grass":pygame.image.load("images/art9.png"), "top_grass_squashed":pygame.image.load("images/art10.png")}
 
 
 clock = pygame.time.Clock()
 pygame.init()
 
-WIN_SIZE = (800, 600)
+WIN_SIZE = (1000, 600)
 
 pygame.display.set_caption("game")
 win = pygame.display.set_mode((WIN_SIZE), 0, 32)
 
-display = pygame.Surface((400, 300))
+display = pygame.Surface((500, 300))
 
 moving_left = False
 moving_right = False
@@ -32,18 +40,18 @@ font = pygame.font.SysFont(None, 15)
 bullet_image = pygame.image.load("images/art7.png")
 
 map = [
-".................o....................",
-"................................oo....",
-"...................#####..............",
-"......................................",
-".........########.....vvv.............",
-".......v..............###........v....",
-"......##......v...............####....",
-"........o.....##.........#.........o..",
-"......####...............###..........",
-"..##....##............................",
-"#..................vvvv...v...######..",
-"##.....vvvv.v......###################",
+"....v............o....................",
+"...v#v.............vvvvv........oo....",
+"..v###v............#####..............",
+".v#####v.vvvvvvvv.....................",
+".#######.########.....vvv.............",
+"......vv..............###.....vvvv....",
+"......##......vv.........v....####....",
+"......vvvv....##.........#vv.......o..",
+"..vv..####...............###..........",
+"v.##....##.....................vvvvvv.",
+"#v.................vvvvvvvvvvvv######v",
+"##vvvvvvvvvvvvvvvvv###################",
 "######################################",
 "######################################",
 "######################################",
@@ -53,14 +61,19 @@ SPEED = 3
 y_velocity = 0
 x_velocity = 0
 BULLET_SPEED = 5
+jump_height = 8
 
-
-cam_x = 250
+cam_x = 0
 coyote_timer = 0
 dir = "right"
 bullets = []
 looking_up = False
 tile_width = 16
+
+frame = 0
+current_anim = "idle"
+time_since_last_frame = 0
+last_x = 0
 
 class enemy:
     def __init__ (self, rect, type = "fodder"):
@@ -128,6 +141,9 @@ for y in range(0, len(map)):
         elif map[y][x] == "v":
             rect = pygame.Rect(x * tile_width, y * tile_width, tile_width, tile_width)
             foreground.append(rect)
+        elif map[y][x] == "o":
+            new_enemy = enemy(pygame.Rect(x * tile_width, y * tile_width, 40, 20))
+            enemies.append(new_enemy)
 
 
 while True:
@@ -157,7 +173,7 @@ while True:
                 create_bullet()
             if event.key == K_z and coyote_timer < 10:
                 coyote_timer = 10
-                y_velocity = -8
+                y_velocity = -jump_height
             if event.key == K_w or event.key == K_UP:
                 looking_up = True
 
@@ -171,11 +187,11 @@ while True:
 
     x_velocity = 0
     if moving_right:
-        x_velocity = SPEED# * (clock.get_time() / 10)
+        x_velocity = SPEED
     if moving_left:
-        x_velocity = -SPEED # * (clock.get_time() / 10)
-
-    player.right += round(x_velocity) * delta_time
+        x_velocity = -SPEED
+    movement = round(x_velocity) * delta_time
+    player.move_ip(movement, 0)
 
     for tile in tiles:
         if player.colliderect(tile):
@@ -183,12 +199,11 @@ while True:
                 player.right = tile.left
             if x_velocity < 0:
                 player.left = tile.right
-            x_velocity = 0
 
     cam_target = player.centerx - display.get_size()[0] / 2
-    cam_x  = cam_target #+= (cam_target - cam_x) * 0.1
+    cam_x += (cam_target - cam_x) * 0.1
 
-    player.top += y_velocity * delta_time
+    player.move_ip(0, y_velocity * delta_time)
 
     for tile in tiles:
         if player.colliderect(tile):
@@ -203,8 +218,6 @@ while True:
 
     if y_velocity > 15:
         y_velocity = 15
-
-
 
     for bullet in bullets[:]:
         bullet["x"] += bullet["x_velocity"] * delta_time
@@ -228,29 +241,41 @@ while True:
         enemy.update()
         enemy.draw()'''
 
-    if dir=="right":
-        if looking_up:
-            display.blit(player_anims["cannon_up_idle"][0], (player.x - 4 - cam_x, player.y - 1, player.width, player.height))
-        else:
-            display.blit(player_anims["idle"][0], (player.x - 4 - cam_x, player.y - 1, player.width, player.height))
-    elif dir == "left":
-        if looking_up:
-            display.blit(pygame.transform.flip(player_anims["cannon_up_idle"][0], True, False), (player.x - 4 - cam_x, player.y - 1, player.width, player.height))
-        else:
-            display.blit(pygame.transform.flip(player_anims["idle"][0], True, False), (player.x - 4 - cam_x, player.y - 1, player.width, player.height))
+    time_since_last_frame += clock.get_time()
+    if time_since_last_frame >= 150:
+        frame += 1
+        if frame == len(player_anims[current_anim]):
+            frame = 0
+        time_since_last_frame = 0
+
+    if looking_up:
+        current_anim = "cannon_up_idle"
+        if not grounded:
+            current_anim = "looking_up_jump"
+        elif moving_right or moving_left:
+            current_anim = "looking_up_run"
+    else:
+        current_anim = "idle"
+        if not grounded:
+            current_anim = "jump"
+        elif moving_right or moving_left:
+            current_anim = "run"
+
+    if dir == "right":
+        display.blit(player_anims[current_anim][frame], (player.x - 4 - cam_x, player.y - 1, player.width, player.height))
+    if dir == "left":
+        display.blit(pygame.transform.flip(player_anims[current_anim][frame], True, False), (player.x - 4 - cam_x, player.y - 1, player.width, player.height))
 
     for tile in tiles:
         display.blit(grass_tiles["default_grass"], (tile.x - cam_x, tile.y, tile.width, tile.height))
     for foliage in foreground:
-        display.blit(grass_tiles["top_grass"], (foliage.x - cam_x, foliage.y, foliage.width, foliage.height))
-
-    text = font.render(str(clock.get_fps()), True, (0, 0, 0), (0, 0, 1))
-    text.set_colorkey((0, 0, 1))
-    text_rect = text.get_rect()
-    text_rect
-    display.blit(text, text_rect)
+        if not foliage.colliderect(player):
+            display.blit(grass_tiles["top_grass"], (foliage.x - cam_x, foliage.y, foliage.width, foliage.height))
+        if foliage.colliderect(player):
+            display.blit(grass_tiles["top_grass_squashed"], (foliage.x - cam_x, foliage.y, foliage.width, foliage.height))
 
     win.blit(pygame.transform.scale(display, WIN_SIZE), (0,0))
 
+    last_x = player.x
     pygame.display.update()
     clock.tick(60)
